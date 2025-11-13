@@ -11,7 +11,6 @@ import numpy as np
 import geopandas as gpd
 import xgboost as xgb
 from statsmodels.tsa.seasonal import seasonal_decompose
-from statsmodels.stats.diagnostic import acorr_ljungbox # NUEVO: Importar Ljung-Box
 import unidecode
 import re
 import os
@@ -353,25 +352,9 @@ def generate_model_content(y_full, X_full, df_ml):
     )
     fig_residuales.add_hline(y=0, line_dash="dash", line_color=COLORS['primary'])
     fig_residuales.update_layout(xaxis_title='Año', yaxis_title='Error (Residual)')
-    
-    # ====================================================================
-    # === NUEVO CÁLCULO: TEST DE LJUNG-BOX ===
-    # ====================================================================
-    # Aplicar el test Ljung-Box a los residuos. Lags=10 para 10 períodos
-    ljung_box_results = acorr_ljungbox(residuals, lags=[10], return_df=True)
-    p_value_ljung_box = ljung_box_results['lb_pvalue'].iloc[-1]
-    
-    # Formatear el resultado para el Dashboard
-    p_value_texto = f"{p_value_ljung_box:.4f}"
-    
-    if p_value_ljung_box > 0.05:
-        resultado_ljung = f"Pass (p-valor: {p_value_texto}). Los residuos son independientes (Ruido Blanco)."
-    else:
-        resultado_ljung = f"FAIL (p-valor: {p_value_texto}). ¡Los residuos están autocorrelacionados! (Requiere ajuste de modelo)"
 
     print("-> CARGA PESADA: MODELOS COMPLETADA.")
-    # DEVOLVEMOS TAMBIÉN EL RESULTADO DEL TEST
-    return fig_prediccion, fig_residuales, resultado_ljung # <--- CAMBIO en el return
+    return fig_prediccion, fig_residuales
 
 # --- 7. Definir el Layout (Estructura Académica) ---
 app.layout = html.Div([
@@ -386,7 +369,7 @@ app.layout = html.Div([
     ),
     dcc.Tabs(id="tabs-principales", value='tab-7', style=tabs_styles, children=[
 
-        # Pestañas 1-6 (Metodología)
+        # Pestañas 1-6
         dcc.Tab(label='1. Introducción', value='tab-1', style=tab_style, selected_style=tab_selected_style, children=[
             html.Div(style={'padding': '20px'}, children=[html.H2('Introducción')])
         ]),
@@ -412,7 +395,7 @@ app.layout = html.Div([
                             html.P('Esto implica utilizar datos históricos para predecir valores futuros en una secuencia ordenada por tiempo. El objetivo no es explicar por qué ocurren (causalidad), sino *cuántos* se espera que ocurran (predicción).'),
                             html.Hr(style={'margin': '20px 0'}),
                             html.H4('Variable Objetivo y Alcance', style={'color': COLORS['secondary']}),
-                            html.P('La variable objetivo o de interés es la **CANTIDAD** total de homicidios.'),
+                            html.P('La variable objetivo o de interés es la CANTIDAD total de homicidios.'),
                             html.Ul([
                                 html.Li('Granularidad: La serie de tiempo se agrega a nivel mensual para capturar patrones estacionales y tendencias a mediano plazo.'),
                                 html.Li('Alcance: El modelo es de carácter nacional, prediciendo el número total de homicidios en Colombia.'),
@@ -454,7 +437,7 @@ df_raw['FECHA HECHO'] = pd.to_datetime(df_raw['FECHA HECHO'], format='%d/%m/%Y')
                             html.Pre(html.Code(f"""
 # Agrupar por Mes (MS: Month Start) y sumar
 df_monthly = df_raw.set_index('FECHA HECHO') \
-                     .resample('MS')['CANTIDAD'].sum().to_frame()
+                    .resample('MS')['CANTIDAD'].sum().to_frame()
 
 # Resultado: 273 meses (desde {fecha_inicio} hasta {fecha_fin})
 """, style={'fontFamily': 'monospace'}), style={'backgroundColor': '#F8FAFC', 'padding': '10px', 'borderRadius': '5px', 'border': f'1px solid {COLORS["border"]}', 'overflowX': 'auto'}),
@@ -673,13 +656,6 @@ df_ml = df_ml.dropna()
                                 ]),
                                 html.Li('Si ocurriera un evento de esta magnitud, las predicciones del modelo quedarían invalidadas, ya que no tiene datos históricos de un evento similar para aprender.')
                             ]),
-                            html.Hr(style={'margin': '20px 0'}),
-                            html.H3('Mejoras Futuras', style={'marginTop': '30px'}),
-                            html.P('Para superar estas limitaciones, futuras iteraciones del proyecto podrían explorar:'),
-                            html.Ul([
-                                html.Li(html.Strong('Modelos con Variables Exógenas (SARIMAX o XGBoost-Exógeno):'),' Incluir datos económicos y demográficos para capturar las causas raíz.'),
-                                html.Li(html.Strong('Modelos Geográficos (Panel de Datos):'),' Desarrollar modelos a nivel departamental o municipal para predecir no solo "cuántos" sino "dónde", permitiendo una mejor asignación de recursos.')
-                            ])
                         ])
                     ]),
                 ])
@@ -732,12 +708,12 @@ def render_mapa_content(tab_value):
 )
 def render_modelo_content(tab_value):
     if tab_value == 'sub-tab-c':
-        fig_prediccion, fig_residuales, resultado_ljung_box = generate_model_content(y_full, X_full, df_ml) # <--- CAMBIO AQUÍ
+        fig_prediccion, fig_residuales = generate_model_content(y_full, X_full, df_ml)
 
         # Replicamos el contenido estático que originalmente iba en esta pestaña
         return html.Div(style={'padding': '20px'}, children=[
             html.H3('Visualización de Resultados del Modelo (XGBoost)'),
-            html.P('A continuación se muestra el rendimiento del modelo campeón (XGBoost) para pronosticar los últimos meses del set de datos.'),
+            html.P('A continuación se muestra el rendimiento del modelo (XGBoost) para pronosticar los últimos meses del set de datos.'),
             html.Div([
                 html.Div([html.H4("Inicio del Pronóstico", style=kpi_title_style_small), html.P("Octubre 2025", style=kpi_value_style_small)], style=kpi_card_style_2_col),
                 html.Div([html.H4("Fin del Pronóstico", style=kpi_title_style_small), html.P("Diciembre 2025", style=kpi_value_style_small)], style=kpi_card_style_2_col),
@@ -747,19 +723,7 @@ def render_modelo_content(tab_value):
             html.Hr(),
             html.H3('Análisis de Residuales'),
             html.P("Los residuales (errores) del modelo deben ser aleatorios y no mostrar patrones. Un gráfico de residuales centrado en cero, como el que se muestra a continuación, indica que el modelo ha capturado con éxito la estructura de los datos."),
-            dcc.Graph(figure=fig_residuales),
-            
-            # ====================================================================
-            # === NUEVO: MOSTRAR RESULTADO DEL TEST DE LJUNG-BOX ===
-            # ====================================================================
-            html.Hr(),
-            html.H4('Test de Ljung-Box (Independencia de Residuos)', style={'color': COLORS['primary']}),
-            html.P('Verifica si la autocorrelación de los residuos es significativamente diferente de cero. Si el test pasa (p-valor > 0.05), el modelo ha capturado bien la estructura de la serie.'),
-            html.Div([
-                html.P([html.Strong("Resultado del Test: "), resultado_ljung_box],
-                       style={'fontSize': '16px', 'fontWeight': '600', 'backgroundColor': COLORS['accent'], 'padding': '10px', 'borderRadius': '5px'})
-            ])
-            # ====================================================================
+            dcc.Graph(figure=fig_residuales)
         ])
     return html.Div()
 

@@ -1,0 +1,14 @@
+dash
+pandas
+numpy
+plotly
+geopandas
+xgboost
+statsmodels
+unidecode
+gunicorn
+# Dependencias de GeoPandas
+fiona
+shapely
+pyproj
+rtree

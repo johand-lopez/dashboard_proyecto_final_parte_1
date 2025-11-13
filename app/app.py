@@ -1,15 +1,15 @@
 import dash
 from dash import dcc
 from dash import html
-from dash import dash_table 
-from dash.dependencies import Input, Output 
+from dash import dash_table
+from dash.dependencies import Input, Output
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
-import numpy as np 
+import numpy as np
 import geopandas as gpd
-import xgboost as xgb 
+import xgboost as xgb
 from statsmodels.tsa.seasonal import seasonal_decompose
 import unidecode
 import re
@@ -165,16 +165,16 @@ fig_top_deptos = px.bar(
 fig_zona = px.pie(
     df_raw['ZONA'].value_counts().reset_index(), values='count', names='ZONA',
     title='Distribución por Zona', template=template_estilo
-) 
+)
 fig_sexo = px.pie(
     df_raw['SEXO'].value_counts().reset_index(), values='count', names='SEXO',
     title='Distribución por Sexo', template=template_estilo
-) 
+)
 df_zona_sexo = df_raw.groupby(['ZONA', 'SEXO'])['CANTIDAD'].sum().reset_index()
 fig_zona_sexo = px.bar(
     df_zona_sexo, x='ZONA', y='CANTIDAD', color='SEXO',
     title='Homicidios por Zona y Sexo', barmode='stack', template=template_estilo
-) 
+)
 
 # --- BLOQUE 1: GRÁFICOS DE DESCOMPOSICIÓN SEPARADOS ---
 print("Generando figuras de Descomposición...")
@@ -224,7 +224,7 @@ fig_model_compare.update_layout(legend_title_text='Modelo')
 # --- 6d. Aplicar estilo a figuras LIGERAS ---
 for fig in [fig_top_deptos, fig_zona, fig_sexo, fig_zona_sexo,
             fig_deco_obs, fig_deco_trend, fig_deco_seas, fig_deco_resid,
-            fig_model_compare]: 
+            fig_model_compare]:
     fig.update_layout(
         plot_bgcolor=COLORS['card_bg'],
         paper_bgcolor=COLORS['card_bg'],
@@ -244,10 +244,10 @@ print("¡Figuras ligeras listas! Definiendo layout...")
 def generate_mapa_content():
     """Carga GeoPandas y genera la figura del mapa (consumo de RAM alto)."""
     print("-> INICIANDO CARGA PESADA: GEOPANDAS y MAPA...")
-    
+
     # Carga del Shapefile (¡Mueve esto aquí!)
     gdf = gpd.read_file(shapefile_path)
-    
+
     # Procesamiento para el mapa
     # df_agregado y limpiar_nombre se definieron globalmente para evitar recálculos
     gdf['NOMBRE_LIMPIO'] = gdf['dpto_cnmbr'].apply(limpiar_nombre)
@@ -285,7 +285,7 @@ def generate_mapa_content():
 def generate_model_content(y_full, X_full, df_ml):
     """Carga modelos XGBoost y genera las figuras de predicción/residuales."""
     print("-> INICIANDO CARGA PESADA: MODELOS XGBOOST y PREDICCIÓN...")
-    
+
     # Carga de Modelos (¡Mueve esto aquí!)
     model_mean = xgb.XGBRegressor()
     model_mean.load_model(model_mean_file)
@@ -293,9 +293,9 @@ def generate_model_content(y_full, X_full, df_ml):
     model_lower.load_model(model_lower_file)
     model_upper = xgb.XGBRegressor()
     model_upper.load_model(model_upper_file)
-    
-    # Lógica de predicción 
-    n_steps_future = 3 
+
+    # Lógica de predicción
+    n_steps_future = 3
     future_dates = pd.date_range(start=df_ml.index.max() + pd.DateOffset(months=1), periods=n_steps_future, freq='MS')
     predictions_mean = []
     predictions_lower = []
@@ -304,7 +304,7 @@ def generate_model_content(y_full, X_full, df_ml):
 
     # --- Tu código de forecasting recursivo COMPLETO ---
     for date in future_dates:
-        last_data = data_recursive.iloc[-12:, :] 
+        last_data = data_recursive.iloc[-12:, :]
         lag_1 = data_recursive['CANTIDAD'].iloc[-1]
         lag_12 = data_recursive['CANTIDAD'].iloc[-12]
         media_movil_3 = data_recursive['CANTIDAD'].iloc[-3:].mean()
@@ -317,7 +317,7 @@ def generate_model_content(y_full, X_full, df_ml):
         predictions_lower.append(pred_lower)
         predictions_upper.append(pred_upper)
         new_row = features_df.copy()
-        new_row['CANTIDAD'] = pred_mean 
+        new_row['CANTIDAD'] = pred_mean
         data_recursive = pd.concat([data_recursive, new_row[data_recursive.columns]])
     # --- FIN del código de forecasting recursivo ---
 
@@ -330,18 +330,18 @@ def generate_model_content(y_full, X_full, df_ml):
     connected_forecast_lower = pd.concat([pd.Series([last_value_hist], index=[last_date_hist]), forecast_series_lower])
     connected_forecast_upper = pd.concat([pd.Series([last_value_hist], index=[last_date_hist]), forecast_series_upper])
 
-    # Generación de fig_prediccion 
+    # Generación de fig_prediccion
     fig_prediccion = go.Figure()
     fig_prediccion.add_trace(go.Scatter(x=y_full.index, y=y_full, mode='lines', name='Datos Históricos (Reales)'))
     fig_prediccion.add_trace(go.Scatter(x=connected_forecast_lower.index, y=connected_forecast_lower, fill=None, mode='lines', line=dict(color='limegreen', width=0), showlegend=False))
     fig_prediccion.add_trace(go.Scatter(x=connected_forecast_upper.index, y=connected_forecast_upper, fill='tonexty', mode='lines', line=dict(color='limegreen', width=0), name='Intervalo de Confianza 95%', showlegend=True, fillcolor='rgba(152, 251, 152, 0.3)'))
     fig_prediccion.add_trace(go.Scatter(x=connected_forecast_mean.index, y=connected_forecast_mean, mode='lines', name='Predicción XGBoost (Fin de 2025)', line=dict(color='limegreen', dash='dot', width=3)))
     fig_prediccion.update_layout(title='Predicción Final del Modelo Campeón (XGBoost)', xaxis_title='Año', yaxis_title='Cantidad de Homicidios', hovermode="x unified")
-    zoom_start_date = y_full.index[-24] 
+    zoom_start_date = y_full.index[-24]
     zoom_end_date = future_dates[-1] + pd.DateOffset(months=2)
     fig_prediccion.update_xaxes(range=[zoom_start_date, zoom_end_date])
-    
-    # Generación de fig_residuales 
+
+    # Generación de fig_residuales
     train_predictions = model_mean.predict(X_full)
     residuals = y_full - train_predictions
     residuals_df = pd.DataFrame({'Fecha': y_full.index, 'Residuales': residuals})
@@ -352,9 +352,9 @@ def generate_model_content(y_full, X_full, df_ml):
     )
     fig_residuales.add_hline(y=0, line_dash="dash", line_color=COLORS['primary'])
     fig_residuales.update_layout(xaxis_title='Año', yaxis_title='Error (Residual)')
-    
+
     print("-> CARGA PESADA: MODELOS COMPLETADA.")
-    return fig_prediccion, fig_residuales 
+    return fig_prediccion, fig_residuales
 
 # --- 7. Definir el Layout (Estructura Académica) ---
 app.layout = html.Div([
@@ -368,7 +368,7 @@ app.layout = html.Div([
         }
     ),
     dcc.Tabs(id="tabs-principales", value='tab-7', style=tabs_styles, children=[
-        
+
         # Pestañas 1-6
         dcc.Tab(label='1. Introducción', value='tab-1', style=tab_style, selected_style=tab_selected_style, children=[
             html.Div(style={'padding': '20px'}, children=[html.H2('Introducción')])
@@ -386,7 +386,7 @@ app.layout = html.Div([
             html.Div(style={'padding': '20px'}, children=[
                 html.H2('Metodología'),
                 dcc.Tabs(id="tabs-metodologia", value='sub-tab-6a', children=[
-                    
+
                     # --- Sub-Pestaña 6a: Definición del Problema ---
                     dcc.Tab(label='a. Definición del Problema', value='sub-tab-6a', style=tab_style, selected_style=tab_selected_style, children=[
                         html.Div(style={'padding': '20px'}, children=[
@@ -403,7 +403,7 @@ app.layout = html.Div([
                             ])
                         ])
                     ]),
-                    
+
                     # --- Sub-Pestaña 6b: Preparación de los Datos ---
                     dcc.Tab(label='b. Preparación de los Datos', value='sub-tab-6b', style=tab_style, selected_style=tab_selected_style, children=[
                         html.Div(style={'padding': '20px'}, children=[
@@ -416,8 +416,8 @@ app.layout = html.Div([
                             dash_table.DataTable(
                                 data=df_null_counts.to_dict('records'),
                                 columns=[{'name': i, 'id': i} for i in df_null_counts.columns],
-                                style_table={**table_style, 'maxWidth': '500px', 'margin': 'auto'}, 
-                                style_cell=cell_style, 
+                                style_table={**table_style, 'maxWidth': '500px', 'margin': 'auto'},
+                                style_cell=cell_style,
                                 style_header=header_style
                             ),
                             html.H5('Conversión de Fechas', style={'marginTop': '15px'}),
@@ -437,13 +437,13 @@ df_raw['FECHA HECHO'] = pd.to_datetime(df_raw['FECHA HECHO'], format='%d/%m/%Y')
                             html.Pre(html.Code(f"""
 # Agrupar por Mes (MS: Month Start) y sumar
 df_monthly = df_raw.set_index('FECHA HECHO') \
-                   .resample('MS')['CANTIDAD'].sum().to_frame()
+                    .resample('MS')['CANTIDAD'].sum().to_frame()
 
 # Resultado: 273 meses (desde {fecha_inicio} hasta {fecha_fin})
 """, style={'fontFamily': 'monospace'}), style={'backgroundColor': '#F8FAFC', 'padding': '10px', 'borderRadius': '5px', 'border': f'1px solid {COLORS["border"]}', 'overflowX': 'auto'}),
                             html.H5('Análisis de Componentes', style={'marginTop': '15px'}),
                             html.P('Se descompuso la serie para analizar visualmente sus componentes:'),
-                            dcc.Graph(figure=fig_deco_obs), 
+                            dcc.Graph(figure=fig_deco_obs),
                             dcc.Graph(figure=fig_deco_trend),
                             dcc.Graph(figure=fig_deco_seas),
                             dcc.Graph(figure=fig_deco_resid),
@@ -483,7 +483,7 @@ df_ml = df_ml.dropna()
                             html.P('El rendimiento final (ej. MAPE 4.81%) es el promedio de estos folds, lo que da una medida muy robusta de la estabilidad del modelo.')
                         ])
                     ]),
-                    
+
                     # --- Sub-Pestaña 6c: Selección del Modelo ---
                     dcc.Tab(label='c. Selección del Modelo', value='sub-tab-6c', style=tab_style, selected_style=tab_selected_style, children=[
                         html.Div(style={'padding': '20px'}, children=[
@@ -514,15 +514,15 @@ df_ml = df_ml.dropna()
                             html.Hr(style={'margin': '20px 0'}),
                             html.H4('3. Justificación y Ganador', style={'color': COLORS['secondary']}),
                             html.P('Para seleccionar el modelo final, se comparó el rendimiento promedio en los 3 folds de validación (2022, 2023, 2024).'),
-                            dcc.Graph(figure=fig_model_compare), 
+                            dcc.Graph(figure=fig_model_compare),
                             html.H5('Conclusión:', style={'marginTop': '15px'}),
                             html.P([
-                                'El modelo ', html.Strong('XGBoost (Verde)', style={'color': COLORS['xgboost']}), 
+                                'El modelo ', html.Strong('XGBoost (Verde)', style={'color': COLORS['xgboost']}),
                                 ' superó al modelo SARIMA en todas las métricas de error evaluadas. Su capacidad para capturar patrones complejos y no lineales le permitió reducir el error porcentual (MAPE) al 4.81%, haciéndolo la opción más precisa y robusta para este proyecto.'
                             ])
                         ])
                     ]),
-                    
+
                     # --- Sub-Pestaña 6d: Evaluación del Modelo ---
                     dcc.Tab(label='d. Evaluación del Modelo', value='sub-tab-6d', style=tab_style, selected_style=tab_selected_style, children=[
                         html.Div(style={'padding': '20px'}, children=[
@@ -535,13 +535,13 @@ df_ml = df_ml.dropna()
                 ])
             ])
         ]),
-        
+
         # Pestaña 7: Resultados y análisis final
         dcc.Tab(label='7. Resultados y análisis final', value='tab-7', style=tab_style, selected_style=tab_selected_style, children=[
             html.Div(id='contenedor-tab-7', style={'padding': '20px'}, children=[
                 html.H2('Resultados y Análisis Final'),
-                dcc.Tabs(id="tabs-anidadas", value='sub-tab-d', children=[ 
-                    
+                dcc.Tabs(id="tabs-anidadas", value='sub-tab-d', children=[
+
                     # --- Sub-Pestaña a: EDA 1 (LIGERA) ---
                     dcc.Tab(label='a. EDA 1', value='sub-tab-a', style=tab_style, selected_style=tab_selected_style, children=[
                         html.Div(style={'padding': '20px'}, children=[
@@ -571,7 +571,7 @@ df_ml = df_ml.dropna()
                                 columns=[{'name': i, 'id': i} for i in df_desc_categ.columns],
                                 style_table=table_style, style_cell=cell_style, style_header=header_style
                             ),
-                            html.Hr(), 
+                            html.Hr(),
                             html.H4('Resumen Visual de Distribuciones', style={'textAlign': 'center', 'marginTop': '30px'}),
                             html.Div([
                                 html.Div([dcc.Graph(figure=fig_zona)], style={'width': '49%', 'display': 'inline-block'}),
@@ -581,23 +581,23 @@ df_ml = df_ml.dropna()
                             dcc.Graph(figure=fig_top_deptos),
                         ])
                     ]),
-                    
+
                     # --- Sub-Pestaña b: EDA 2 (MAPA - CARGA PEREZOSA) ---
                     dcc.Tab(label='b. EDA 2', value='sub-tab-b', style=tab_style, selected_style=tab_selected_style, children=[
-                        html.Div(id='mapa-contenedor', children=[ 
+                        html.Div(id='mapa-contenedor', children=[
                             html.H3('EDA 2: Análisis Geográfico y Temporal'),
                             html.Div('Cargando mapa interactivo... (Esto puede tardar unos segundos la primera vez)', id='mapa-placeholder', style={'padding': '50px', 'textAlign': 'center'})
                         ])
                     ]),
-                    
+
                     # --- Sub-Pestaña c: Visualización (MODELO - CARGA PEREZOSA) ---
                     dcc.Tab(label='c. Visualización del modelo', value='sub-tab-c', style=tab_style, selected_style=tab_selected_style, children=[
-                        html.Div(id='modelo-contenedor', children=[ 
+                        html.Div(id='modelo-contenedor', children=[
                             html.H3('Visualización de Resultados del Modelo (XGBoost)'),
                             html.Div('Cargando modelos y generando predicción...', id='modelo-placeholder', style={'padding': '50px', 'textAlign': 'center'})
                         ])
                     ]),
-                    
+
                     # --- Sub-Pestaña d: Indicadores (LIGERA) ---
                     dcc.Tab(label='d. Indicadores de Evaluación del Modelo', value='sub-tab-d', style=tab_style, selected_style=tab_selected_style, children=[
                         html.Div(style={'padding': '20px'}, children=[
@@ -607,8 +607,8 @@ df_ml = df_ml.dropna()
                             dash_table.DataTable(
                                 data=df_metrics_xgb.to_dict('records'),
                                 columns=[{'name': i, 'id': i} for i in df_metrics_xgb.columns],
-                                style_table=table_style, 
-                                style_cell=cell_style, 
+                                style_table=table_style,
+                                style_cell=cell_style,
                                 style_header=header_style,
                                 style_cell_conditional=[
                                     {'if': {'column_id': 'Métrica'}, 'textAlign': 'left'},
@@ -625,7 +625,7 @@ df_ml = df_ml.dropna()
                             html.P("En conjunto, estas métricas demuestran que el modelo XGBoost es preciso, confiable y estable para el pronóstico.", style={'fontWeight': 'bold'})
                         ])
                     ]),
-                    
+
                     # --- Sub-Pestaña e: Limitaciones (LIGERA) ---
                     dcc.Tab(label='e. Limitaciones', value='sub-tab-e', style=tab_style, selected_style=tab_selected_style, children=[
                         html.Div(style={'padding': '20px'}, children=[
@@ -668,7 +668,7 @@ df_ml = df_ml.dropna()
                 ])
             ])
         ]),
-        
+
         # Pestaña 8 (sin cambios)
         dcc.Tab(label='8. Conclusiones', value='tab-8', style=tab_style, selected_style=tab_selected_style, children=[
             html.Div(style={'padding': '20px'}, children=[html.H2('Conclusiones')])
@@ -693,7 +693,7 @@ df_ml = df_ml.dropna()
 def render_mapa_content(tab_value):
     if tab_value == 'sub-tab-b':
         fig_mapa = generate_mapa_content()
-        
+
         # Replicamos el contenido estático que originalmente iba en esta pestaña
         return html.Div(style={'padding': '20px'}, children=[
             html.H3('EDA 2: Análisis Geográfico y Temporal'),
@@ -702,7 +702,7 @@ def render_mapa_content(tab_value):
                 html.Div([html.H4("Depto. con MÁS Homicidios", style=kpi_title_style_small), html.P(f"{kpi_depto_max_nombre} ({kpi_depto_max_valor})", style=kpi_value_style_small)], style=kpi_card_style_2_col),
                 html.Div([html.H4("Depto. con MENOS Homicidios", style=kpi_title_style_small), html.P(f"{kpi_depto_min_nombre} ({kpi_depto_min_valor})", style=kpi_value_style_small)], style=kpi_card_style_2_col),
             ], style=kpi_row_style),
-            html.Hr(), 
+            html.Hr(),
             dcc.Graph(figure=fig_mapa)
         ])
     return html.Div()
@@ -716,7 +716,7 @@ def render_mapa_content(tab_value):
 def render_modelo_content(tab_value):
     if tab_value == 'sub-tab-c':
         fig_prediccion, fig_residuales = generate_model_content(y_full, X_full, df_ml)
-        
+
         # Replicamos el contenido estático que originalmente iba en esta pestaña
         return html.Div(style={'padding': '20px'}, children=[
             html.H3('Visualización de Resultados del Modelo (XGBoost)'),
@@ -726,7 +726,7 @@ def render_modelo_content(tab_value):
                 html.Div([html.H4("Fin del Pronóstico", style=kpi_title_style_small), html.P("Diciembre 2025", style=kpi_value_style_small)], style=kpi_card_style_2_col),
             ], style=kpi_row_style),
             html.Hr(),
-            dcc.Graph(figure=fig_prediccion), 
+            dcc.Graph(figure=fig_prediccion),
             html.Hr(),
             html.H3('Análisis de Residuales'),
             html.P("Los residuales (errores) del modelo deben ser aleatorios y no mostrar patrones. Un gráfico de residuales centrado en cero, como el que se muestra a continuación, indica que el modelo ha capturado con éxito la estructura de los datos."),

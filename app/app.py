@@ -11,6 +11,7 @@ import numpy as np
 import geopandas as gpd
 import xgboost as xgb
 from statsmodels.tsa.seasonal import seasonal_decompose
+from statsmodels.stats.diagnostic import acorr_ljungbox # NUEVO: Importar Ljung-Box
 import unidecode
 import re
 import os
@@ -352,9 +353,25 @@ def generate_model_content(y_full, X_full, df_ml):
     )
     fig_residuales.add_hline(y=0, line_dash="dash", line_color=COLORS['primary'])
     fig_residuales.update_layout(xaxis_title='Año', yaxis_title='Error (Residual)')
+    
+    # ====================================================================
+    # === NUEVO CÁLCULO: TEST DE LJUNG-BOX ===
+    # ====================================================================
+    # Aplicar el test Ljung-Box a los residuos. Lags=10 para 10 períodos
+    ljung_box_results = acorr_ljungbox(residuals, lags=[10], return_df=True)
+    p_value_ljung_box = ljung_box_results['lb_pvalue'].iloc[-1]
+    
+    # Formatear el resultado para el Dashboard
+    p_value_texto = f"{p_value_ljung_box:.4f}"
+    
+    if p_value_ljung_box > 0.05:
+        resultado_ljung = f"Pass (p-valor: {p_value_texto}). Los residuos son independientes (Ruido Blanco)."
+    else:
+        resultado_ljung = f"FAIL (p-valor: {p_value_texto}). ¡Los residuos están autocorrelacionados! (Requiere ajuste de modelo)"
 
     print("-> CARGA PESADA: MODELOS COMPLETADA.")
-    return fig_prediccion, fig_residuales
+    # DEVOLVEMOS TAMBIÉN EL RESULTADO DEL TEST
+    return fig_prediccion, fig_residuales, resultado_ljung # <--- CAMBIO en el return
 
 # --- 7. Definir el Layout (Estructura Académica) ---
 app.layout = html.Div([
@@ -369,7 +386,7 @@ app.layout = html.Div([
     ),
     dcc.Tabs(id="tabs-principales", value='tab-7', style=tabs_styles, children=[
 
-        # Pestañas 1-6
+        # Pestañas 1-6 (Metodología)
         dcc.Tab(label='1. Introducción', value='tab-1', style=tab_style, selected_style=tab_selected_style, children=[
             html.Div(style={'padding': '20px'}, children=[html.H2('Introducción')])
         ]),
@@ -437,7 +454,7 @@ df_raw['FECHA HECHO'] = pd.to_datetime(df_raw['FECHA HECHO'], format='%d/%m/%Y')
                             html.Pre(html.Code(f"""
 # Agrupar por Mes (MS: Month Start) y sumar
 df_monthly = df_raw.set_index('FECHA HECHO') \
-                    .resample('MS')['CANTIDAD'].sum().to_frame()
+                     .resample('MS')['CANTIDAD'].sum().to_frame()
 
 # Resultado: 273 meses (desde {fecha_inicio} hasta {fecha_fin})
 """, style={'fontFamily': 'monospace'}), style={'backgroundColor': '#F8FAFC', 'padding': '10px', 'borderRadius': '5px', 'border': f'1px solid {COLORS["border"]}', 'overflowX': 'auto'}),
@@ -715,7 +732,7 @@ def render_mapa_content(tab_value):
 )
 def render_modelo_content(tab_value):
     if tab_value == 'sub-tab-c':
-        fig_prediccion, fig_residuales = generate_model_content(y_full, X_full, df_ml)
+        fig_prediccion, fig_residuales, resultado_ljung_box = generate_model_content(y_full, X_full, df_ml) # <--- CAMBIO AQUÍ
 
         # Replicamos el contenido estático que originalmente iba en esta pestaña
         return html.Div(style={'padding': '20px'}, children=[
@@ -730,7 +747,19 @@ def render_modelo_content(tab_value):
             html.Hr(),
             html.H3('Análisis de Residuales'),
             html.P("Los residuales (errores) del modelo deben ser aleatorios y no mostrar patrones. Un gráfico de residuales centrado en cero, como el que se muestra a continuación, indica que el modelo ha capturado con éxito la estructura de los datos."),
-            dcc.Graph(figure=fig_residuales)
+            dcc.Graph(figure=fig_residuales),
+            
+            # ====================================================================
+            # === NUEVO: MOSTRAR RESULTADO DEL TEST DE LJUNG-BOX ===
+            # ====================================================================
+            html.Hr(),
+            html.H4('Test de Ljung-Box (Independencia de Residuos)', style={'color': COLORS['primary']}),
+            html.P('Verifica si la autocorrelación de los residuos es significativamente diferente de cero. Si el test pasa (p-valor > 0.05), el modelo ha capturado bien la estructura de la serie.'),
+            html.Div([
+                html.P([html.Strong("Resultado del Test: "), resultado_ljung_box],
+                       style={'fontSize': '16px', 'fontWeight': '600', 'backgroundColor': COLORS['accent'], 'padding': '10px', 'borderRadius': '5px'})
+            ])
+            # ====================================================================
         ])
     return html.Div()
 

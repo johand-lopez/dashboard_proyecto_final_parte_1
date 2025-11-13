@@ -674,10 +674,6 @@ df_ml = df_ml.dropna()
 })
 
 
-# =========================================================================
-# === CALLBACKS DE CARGA PEREZOSA (Lazy Loading) ===
-# =========================================================================
-
 # ----------------- CALLBACK para EDA 2 (MAPA) -----------------
 @app.callback(
     Output('mapa-contenedor', 'children'),
@@ -699,6 +695,7 @@ def render_mapa_content(tab_value):
             dcc.Graph(figure=fig_mapa)
         ])
     return html.Div()
+
 
 
 # ----------------- CALLBACK para Modelo (PREDICCIÓN) -----------------

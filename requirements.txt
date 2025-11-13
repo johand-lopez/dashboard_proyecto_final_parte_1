@@ -11,3 +11,4 @@ fiona
 shapely
 pyproj
 rtree
+scikit-learn

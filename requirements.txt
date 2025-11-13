@@ -7,7 +7,6 @@ xgboost
 statsmodels
 unidecode
 gunicorn
-# Dependencias de GeoPandas
 fiona
 shapely
 pyproj

@@ -19,19 +19,14 @@ app = dash.Dash(__name__)
 server = app.server
 app.title = "Dashboard de Homicidios en Colombia"
 
-# --- 2. Definir Rutas de Archivos (Nuevas Rutas Relativas) ---
-# Usamos '..' para subir de la carpeta 'app/' a la raíz del proyecto ('serie_tiempo/')
+# Para Dataset (que es una carpeta dentro de la raíz):
+csv_file = "Dataset/HOMICIDIO_20251026.csv"
+shapefile_path = "Dataset/MGN_ADM_DPTO_POLITICO.shp"
 
-# Para archivos dentro de la carpeta Dataset:
-csv_file = "../Dataset/HOMICIDIO_20251026.csv"
-shapefile_path = "../Dataset/MGN_ADM_DPTO_POLITICO.shp"
-
-# Para los archivos de modelo que están directamente en la raíz:
-model_mean_file = "../xgb_final_model_mean.json"
-model_lower_file = "../xgb_final_model_lower.json"
-model_upper_file = "../xgb_final_model_upper.json"
-
-# Nota: Ya no necesitas la variable 'base_project_path' ni el os.path.join.
+# Para los archivos de modelo (que están directamente en la raíz):
+model_mean_file = "xgb_final_model_mean.json"
+model_lower_file = "xgb_final_model_lower.json"
+model_upper_file = "xgb_final_model_upper.json"
 
 
 # --- 3. Función de Limpieza de Nombres (Validada) ---
